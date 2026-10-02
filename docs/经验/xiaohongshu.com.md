@@ -46,19 +46,21 @@
 - 后台标签页也能填，但最后发布前建议 `tabs select focus:true` 切前台一次。
 - **发布前自检清单**：`N/18` 图数、标题 value、`/1000` 计数、`a.tiptap-topic` 数、时间框 value。
 
-## 🔑 笔记详情页必须有 xsec_token（2026-09-15 实测）
+## 🔴 笔记只能从页面点进去，禁止直接导航笔记 URL（2026-09-15 实测 + 强制规则）
 
-直接导航 `https://www.xiaohongshu.com/explore/<note_id>` → **300031「当前笔记暂时无法浏览」+ 滑块验证**。
-正确姿势：token 就藏在主页卡片的 href 里，取出来导航即可：
+**硬规则：调用小红书时，只能通过页面点击笔记卡片进入笔记详情，禁止直接 navigate / fetch 笔记 URL。**
+直接导航 `https://www.xiaohongshu.com/explore/<note_id>`（或 `discovery/item`、带 note_id 的 `user/profile` 链接、
+`xhslink.com` 短链）→ **300031「当前笔记暂时无法浏览」+ 滑块验证**，判定为风控。
+
+扩展已内置守卫：命中这些 URL 的 `navigate` / `tabs(action:"new")` / `fetch` 会被直接拦下，报 `XHS_NO_DIRECT_URL`。
+正确做法：在搜索结果页 / 用户主页 / 首页里定位笔记卡片元素，用 `click` 点进去。
 
 ```js
-// 在用户主页跑
-const it=[...document.querySelectorAll('section.note-item')].find(s=>s.innerText.includes('关键词'));
-it.querySelector('a.cover').getAttribute('href');
-// → /user/profile/<uid>/<note_id>?xsec_token=XXX=&xsec_source=pc_user
+// 在用户主页：找到目标笔记卡片，直接点它（不要取 href 去导航）
+const it=[...document.querySelectorAll('section.note-item')].find(s=>s.textContent.includes('关键词'));
+it.querySelector('a.cover').click();
 ```
 
-导航这个 URL 会自动 302 到 `/explore/<note_id>?xsec_token=...` 并正常打开。
 `section.note-item` 上自带 `data-note-id` / `data-index`。**别用 `a[href*="/explore/"]` 匹配**——
 主页那批 href 是**不带 token** 的，点它必 404。置顶笔记的顺序每次渲染会变，别按 DOM 下标硬编码。
 

@@ -36,7 +36,7 @@ async function ensureOffscreen() {
   if (ensuring) return ensuring;
   ensuring = (async () => {
     try {
-      if (!chrome.offscreen) throw new Error('这个 Chrome 没有 offscreen API');
+      if (!chrome.offscreen) throw new Error('这个 Edge 没有 offscreen API');
       if (await chrome.offscreen.hasDocument()) return true;
       // 加超时：createDocument 万一挂住不 resolve，`ensuring` 永远非空，
       // 每条回执、每次 alarm 自愈都卡在它上面——整个扩展静默瘫痪。
@@ -129,8 +129,8 @@ function noteBridgeVersion(v) {
   const mine = chrome.runtime.getManifest().version;
   bridgeMismatch = v === mine ? '' : v;
   chrome.action.setTitle({ title: bridgeMismatch
-    ? `huashu-chrome：扩展 v${mine} 和桥 v${v} 版本不一致，去 chrome://extensions 重载一次`
-    : 'huashu-chrome' });
+    ? `shuaipotian-edge：扩展 v${mine} 和桥 v${v} 版本不一致，去 edge://extensions 重载一次`
+    : 'shuaipotian-edge' });
   setBadge(true);
 }
 
@@ -290,6 +290,7 @@ async function onMessage(msg) {
   if (msg.type === 'event') return onBridgeEvent(msg);
   if (msg.type !== 'cmd') return;
   try {
+    if (REQUIRE_EDGE && !IS_EDGE) throw err('EDGE_ONLY', '本扩展默认只连接 Edge（当前浏览器不是 Edge）。如需放开，把 background.js 里的 REQUIRE_EDGE 改成 false。');
     const handler = HANDLERS[msg.cmd];
     if (!handler) throw err('INTERNAL', `未知命令 ${msg.cmd}`);
     // await 而不是 void：标记那一侧只信 storage 里的名单（见 syncMark 上的说明），
@@ -697,7 +698,7 @@ const groupKey = (sid) => `agentGroup:${sid}`;
 // 组名是品牌字不是彩色圆点 emoji（花叔定的：色块图标丑）。它同时是「这个组
 // 是我们建的」的指纹。旧版组名用过身份 emoji，验指纹时兼容一阵子——
 // 不兼容的话，升级前建的组会因为指纹对不上而永远摘不掉。
-const GROUP_TITLE = '花叔';
+const GROUP_TITLE = '帅破天';
 const groupTitleOk = (title, sid) => title === GROUP_TITLE || title === identityOf(sid).emoji;
 
 async function syncGroup(tabId, owners) {
@@ -812,7 +813,7 @@ async function inject(tabId) {
     // 嵌入式编辑器几乎全在 iframe 里，少了它们，快照看着「正常」却少半张表。
     await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['content.js'] });
   } catch (e) {
-    throw err('NOT_INTERACTABLE', `无法在此页面注入脚本（${e.message}）。chrome:// 和商店页面受浏览器保护，注入不了。`);
+    throw err('NOT_INTERACTABLE', `无法在此页面注入脚本（${e.message}）。edge:// 和商店页面受浏览器保护，注入不了。`);
   }
 }
 
@@ -937,7 +938,7 @@ function waitForLoad(tabId, timeout = 15000) {
 }
 
 // 浏览器保护的页面：注入不了，等它「就绪」永远等不到。必须在进循环前挡掉，
-// 否则 navigate 到 chrome://extensions 会白白空转满 hardCap——
+// 否则 navigate 到 edge://extensions 会白白空转满 hardCap——
 // 而原先的 waitForLoad 在这类页面上是立刻返回的，那会是一次实打实的退步。
 // about: 不在这张表里 —— about:blank 是可以注入的，而且新标签页在导航提交前
 // 恰恰长这样，误判成「注入不了」会让 tabs(new) 一次都不等。
@@ -1676,6 +1677,33 @@ async function perform(id, cmd, p, ctx) {
   return { ...snap, text: `${head}\n\n${snap.text}`, navigated: r.navigated || !!r.followed };
 }
 
+// ---------- 仅 Edge：默认只连 Edge ----------
+// 本 fork 默认只跑在 Edge 上。Edge 的 UA 里带 "Edg/"，Chrome 不带。
+// 要放开时把 REQUIRE_EDGE 改成 false。
+const REQUIRE_EDGE = true;
+const IS_EDGE = /\bEdg\//.test(navigator.userAgent);
+
+// ---------- 小红书：禁止直接开笔记 URL ----------
+// 直接导航 https://www.xiaohongshu.com/explore/<id> 会撞风控（300031 + 滑块）。
+// 只允许在页面里点笔记卡片进入；命中就在命令入口拦下，别让它走到网络层。
+const XHS_NOTE_PATH = /^\/(?:explore\/|discovery\/item\/|user\/profile\/[^/]+\/)/i;
+function isXhsNoteUrl(url) {
+  try {
+    const u = new URL(url);
+    if (/(?:^|\.)xhslink\.com$/i.test(u.hostname)) return true;   // 短链一律当笔记链
+    if (!/(?:^|\.)xiaohongshu\.com$/i.test(u.hostname)) return false;
+    return XHS_NOTE_PATH.test(u.pathname);
+  } catch { return false; }
+}
+function assertXhsNoteUrlAllowed(url) {
+  if (url && isXhsNoteUrl(url)) {
+    throw err('XHS_NO_DIRECT_URL',
+      '小红书笔记禁止直接导航 URL——会被风控（300031「当前笔记暂时无法浏览」+ 滑块验证）。'
+      + '正确做法：在页面（搜索结果页 / 用户主页 / 首页）里找到笔记卡片元素，用 click 点进去。'
+      + '先用 snapshot 或 query 找到笔记链接，再 click。');
+  }
+}
+
 const HANDLERS = {
   async snapshot(p, tabId, ctx) {
     const id = await resolveTab(tabId);
@@ -1690,6 +1718,7 @@ const HANDLERS = {
 
   async navigate(p, tabId, ctx) {
     const id = await resolveTab(tabId);
+    if (p.url) assertXhsNoteUrlAllowed(p.url);
     if (p.url) await chrome.tabs.update(id, { url: p.url });
     else await toContent(id, { __hc: 'history', action: p.action || 'reload' });
     // 「DOM 可交互 + 安静下来」，比 load + sleep(300) 又快又准。
@@ -1921,7 +1950,7 @@ const HANDLERS = {
   // 这条路由浏览器原生下载，不进内存、不进 context，还自带断点和大文件支持。
   // saveAs:false 是关键：不弹系统保存对话框（那是扩展够不着的东西）。
   async download(p) {
-    const filename = p.filename || `huashu-chrome/${Date.now()}-${(p.url.split('/').pop() || 'file').split('?')[0].slice(0, 60)}`;
+    const filename = p.filename || `shuaipotian-edge/${Date.now()}-${(p.url.split('/').pop() || 'file').split('?')[0].slice(0, 60)}`;
     const dlId = await chrome.downloads.download({ url: p.url, filename, conflictAction: 'uniquify', saveAs: false });
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -2067,6 +2096,7 @@ const HANDLERS = {
   // （公众号正文在 mp.weixin.qq.com，图在 mmbiz.qpic.cn），页面里 fetch 会被 CORS 挡死；
   // 而扩展有 host_permissions，跨域不受限。
   async fetch(p, tabId) {
+    assertXhsNoteUrlAllowed(p.url);
     if (p.binary && p.via !== 'page') {
       try {
         const res = await fetch(p.url, { credentials: 'include' });
@@ -2268,6 +2298,7 @@ const HANDLERS = {
     // active:false —— agent 在后台干活，不把用户从他正在看的页面上拽走。
     // 需要抢焦点的场合（截图、让用户看着操作）由调用方显式传 focus:true。
     if (p.action === 'new') {
+      if (p.url) assertXhsNoteUrlAllowed(p.url);
       const tab = await chrome.tabs.create({ url: p.url || 'about:blank', active: !!p.focus });
       const label = String(p.label || '').slice(0, 40);
       if (label) await chrome.storage.local.set({ [labelKey(tab.id)]: label });
@@ -2346,7 +2377,7 @@ const HANDLERS = {
     chrome.notifications?.create(`hc-ask-${Date.now()}`, {
       type: 'basic',
       iconUrl: 'icons/icon128.png',
-      title: p.title || 'huashu-chrome 需要你搭把手',
+      title: p.title || 'shuaipotian-edge 需要你搭把手',
       message: String(p.prompt || '').slice(0, 180),
       priority: 2,
     }, () => void chrome.runtime.lastError);
@@ -2407,7 +2438,7 @@ const HANDLERS = {
     return { text: `支付确认等待时间设为 ${payTimeout}ms` };
   },
 
-  // 开发期用：改完扩展代码不必再手动去 chrome://extensions 点重载。
+  // 开发期用：改完扩展代码不必再手动去 edge://extensions 点重载。
   // 先把响应发出去，再重载——重载会当场掐断 WS。
   async reload() {
     setTimeout(() => chrome.runtime.reload(), 150);

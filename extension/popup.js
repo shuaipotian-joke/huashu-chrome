@@ -16,7 +16,7 @@ function render(connected, r = {}) {
   btn.textContent = connected ? '一切正常' : '重连';
   const age = r.lastRx ? Math.round((Date.now() - r.lastRx) / 1000) : null;
   const bits = [];
-  if (r.bridge) bits.push(`桥 v${r.bridge}${r.bridge !== chrome.runtime.getManifest().version ? '（和扩展版本不一致，去 chrome://extensions 重载一次）' : ''}`);
+  if (r.bridge) bits.push(`桥 v${r.bridge}${r.bridge !== chrome.runtime.getManifest().version ? '（和扩展版本不一致，去 edge://extensions 重载一次）' : ''}`);
   if (age !== null) bits.push(`${age} 秒前收到心跳`);
   if (!connected && r.offscreenError) bits.push(`后台文档建不起来：${r.offscreenError}`);
   if (!connected && age === null) bits.push('从没连上过：终端那边跑过 agent 了吗？桥由 agent 第一次调用时拉起');

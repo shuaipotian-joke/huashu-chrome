@@ -595,7 +595,7 @@
     // 而 agent 的内容可能源自页面（也就是可能被注入）。这里是最后一道
     // 「数据不当代码用」的边界。
     askEl.querySelector('.head').prepend(avatarCanvas(20));   // 是花叔的分身在请你搭把手
-    askEl.querySelector('.t').textContent = msg.title || 'huashu-chrome 需要你搭把手';
+    askEl.querySelector('.t').textContent = msg.title || 'shuaipotian-edge 需要你搭把手';
     askEl.querySelector('.p').textContent = msg.prompt || '';
     if (msg.danger) askEl.classList.add('danger');
     if (msg.okText) askEl.querySelector('.ok').textContent = msg.okText;

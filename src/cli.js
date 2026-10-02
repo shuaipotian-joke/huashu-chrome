@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// huashu-chrome CLI
+// shuaipotian-edge CLI
 //   mcp      给 agent 用的 MCP server（stdio）。agent 配置里填的就是这条。
 //   bridge   桥 daemon。正常不用手动跑，mcp 会自己拉起。
 //   doctor   诊断：这类产品的头号支持成本就是「连不上」，把排查做成一条命令。
@@ -32,8 +32,8 @@ switch (cmd) {
   }
 
   // 手动发一条命令，开发和排错时不用绕道 agent
-  //   huashu-chrome call snapshot
-  //   huashu-chrome call tabs '{"action":"new","url":"https://example.com"}'
+  //   shuaipotian-edge call snapshot
+  //   shuaipotian-edge call tabs '{"action":"new","url":"https://example.com"}'
   case 'call': {
     // learnings 是纯本地读写，不需要桥和浏览器
     if (argv[1] === 'learnings') {
@@ -102,7 +102,7 @@ switch (cmd) {
 
   case 'extension':
     printExtension();
-    // --reveal：在访达 / 资源管理器里选中扩展文件夹，用户拖进 chrome://extensions 就装好了。
+    // --reveal：在访达 / 资源管理器里选中扩展文件夹，用户拖进 edge://extensions 就装好了。
     // 引导页故意不放本机路径（它每台机器都不一样，还常常躺在 npx 缓存里），
     // 「路径」这件事交给终端和文件管理器，页面只教手势。
     if (has('--reveal')) revealExtensionDir();
@@ -121,16 +121,16 @@ switch (cmd) {
   }
 
   default:
-    console.log(`huashu-chrome — 让任何 AI agent 操控你自己的 Chrome
+    console.log(`shuaipotian-edge — 让任何 AI agent 操控你自己的 Chrome
 
-  huashu-chrome install        一键安装：自动配好所有 agent + 引导装扩展
-  huashu-chrome mcp            启动 MCP server（agent 配置里填这条，install 会自动写）
-  huashu-chrome doctor         诊断连接问题
-  huashu-chrome extension      打印扩展加载步骤
-  huashu-chrome audit [-n 30]  看最近的浏览器操作记录
-  huashu-chrome audit --stats [--days 7]   真实 agent 的用法统计：回合数、哪类调用最多、在哪儿浪费
-  huashu-chrome bridge --foreground   前台跑桥（调试用）
-  huashu-chrome install --dry-run     只看会改哪些配置，不写
+  shuaipotian-edge install        一键安装：自动配好所有 agent + 引导装扩展
+  shuaipotian-edge mcp            启动 MCP server（agent 配置里填这条，install 会自动写）
+  shuaipotian-edge doctor         诊断连接问题
+  shuaipotian-edge extension      打印扩展加载步骤
+  shuaipotian-edge audit [-n 30]  看最近的浏览器操作记录
+  shuaipotian-edge audit --stats [--days 7]   真实 agent 的用法统计：回合数、哪类调用最多、在哪儿浪费
+  shuaipotian-edge bridge --foreground   前台跑桥（调试用）
+  shuaipotian-edge install --dry-run     只看会改哪些配置，不写
 
 配置目录 ${HOME}`);
 }
@@ -139,10 +139,10 @@ async function doctor() {
   const ok = (s) => console.log(`  ✅ ${s}`);
   const bad = (s, fix) => { console.log(`  ❌ ${s}`); if (fix) console.log(`     → ${fix}`); };
 
-  console.log('\nhuashu-chrome 体检\n');
+  console.log('\nshuaipotian-edge 体检\n');
 
   console.log('配置目录');
-  fs.existsSync(HOME) ? ok(HOME) : bad(`${HOME} 不存在`, '跑一次 `huashu-chrome mcp` 会自动创建');
+  fs.existsSync(HOME) ? ok(HOME) : bad(`${HOME} 不存在`, '跑一次 `shuaipotian-edge mcp` 会自动创建');
 
   console.log('\n桥');
   let info = readBridgeInfo();
@@ -170,7 +170,7 @@ async function doctor() {
     {
       const r = await probe(info);
       r.ok ? ok(`握手正常${r.extensionOnline ? ` · Chrome 扩展在线 (v${r.extensionVersion})` : ''}`) : bad('握手失败：' + r.error);
-      if (r.versionMismatch) bad(`扩展版本 ${r.extensionVersion} 和 CLI 不一致`, '去 chrome://extensions 点重载，再刷新目标页面');
+      if (r.versionMismatch) bad(`扩展版本 ${r.extensionVersion} 和 CLI 不一致`, '去 edge://extensions 点重载，再刷新目标页面');
       // 多个 Chrome 实例连着不再是故障（桥按实例路由），但必须说出来：
       // 「命令为什么跑到另一个窗口去了」只有这一处看得见。
       if ((r.extensions || []).length > 1) {
@@ -185,9 +185,9 @@ async function doctor() {
       if (r.ok && !r.extensionOnline) {
         // 话术和 popup、mcp-server 的 hint 一致：首选动作是弹窗里的「重连」。
         // 「去浏览器点开任意页面」对半开连接是错的——半开时 offscreen 自认为在线，
-        // 不会因为你开了个页面就重连；「去 chrome://extensions」则把人引向重装。
+        // 不会因为你开了个页面就重连；「去 edge://extensions」则把人引向重装。
         bad('Chrome 扩展这会儿没连着桥',
-          '点浏览器工具栏的 huashu-chrome 图标 → 「重连」，几秒后再跑一次 doctor（插件没消失，只是连接断了）。'
+          '点浏览器工具栏的 shuaipotian-edge 图标 → 「重连」，几秒后再跑一次 doctor（插件没消失，只是连接断了）。'
           + '图标都没有？Chrome 没开、扩展没装或被停用——按下面「扩展」一栏的目录去装。');
       }
     }
@@ -197,7 +197,7 @@ async function doctor() {
   const mf = path.join(ROOT, 'extension', 'manifest.json');
   fs.existsSync(mf)
     ? ok(`${path.join(ROOT, 'extension')}${alive ? '' : ''}（这只说明文件在；Chrome 是否从这里加载了，看上面「扩展在线」那行）`)
-    : bad('扩展目录缺失', '重装 huashu-chrome');
+    : bad('扩展目录缺失', '重装 shuaipotian-edge');
 
   // bridge.log 里最近一次断连：用户体感的「插件消失」到底是什么时候、断了多久
   try {
@@ -210,7 +210,7 @@ async function doctor() {
     if (lastDown) console.log(`  ·  最近一次断开 ${lastDown}${lastUp ? `，最近一次连上 ${lastUp}` : '，之后没再连上'}（bridge.log，只有时分秒）`);
   } catch { /* 没日志就没日志 */ }
 
-  // 经验库里 agent 记下的「huashu-chrome 的 X 不生效」——产品 bug 住在经验库里，
+  // 经验库里 agent 记下的「shuaipotian-edge 的 X 不生效」——产品 bug 住在经验库里，
   // 没有这一栏就永远回不到开发者手上（screenshot 的 savePath 就是这么躺了一周的）
   try {
     const { LEARNINGS_DIR } = await import('./lib/learnings.js');
@@ -218,7 +218,7 @@ async function doctor() {
     for (const f of fs.readdirSync(LEARNINGS_DIR)) {
       if (!f.endsWith('.md')) continue;
       for (const line of fs.readFileSync(path.join(LEARNINGS_DIR, f), 'utf8').split('\n')) {
-        if (/huashu-chrome/.test(line) && /不生效|无效|没实现|不工作|静默|bug|坏了|绕过|绕法/i.test(line)) hits.push(`${f}: ${line.trim().slice(0, 110)}`);
+        if (/shuaipotian-edge/.test(line) && /不生效|无效|没实现|不工作|静默|bug|坏了|绕过|绕法/i.test(line)) hits.push(`${f}: ${line.trim().slice(0, 110)}`);
         if (hits.length >= 6) break;
       }
     }
@@ -230,7 +230,7 @@ async function doctor() {
 
   console.log('\n日志');
   console.log(`  桥日志   ${LOG_FILE}`);
-  console.log(`  操作审计 ${AUDIT_FILE}   （huashu-chrome audit 查看）`);
+  console.log(`  操作审计 ${AUDIT_FILE}   （shuaipotian-edge audit 查看）`);
   console.log('');
 }
 
@@ -328,19 +328,16 @@ function probe(info) {
 function printExtension() {
   const dir = path.join(ROOT, 'extension');
   console.log(`
-装扩展有两条路：
+在 Edge 里加载扩展（本 fork 只支持 Edge）：
 
-  A. 商店一键装（推荐）：https://chromewebstore.google.com/detail/foiljmaplphdfimfcnfdpekhdnfbgfbf
-
-  B. 手动加载（改过扩展代码、或商店打不开时）
-     1. Chrome 打开  chrome://extensions ，右上角打开「开发者模式」
-     2. 把这个文件夹拖到那一页上（或点「加载已解压的扩展程序」选中它）：
+  1. Edge 打开  edge://extensions ，右上角打开「开发人员模式」
+  2. 点「加载解压缩的扩展」，选中这个文件夹：
 
         ${dir}
 
-        加 --reveal 会直接在访达 / 资源管理器里选中它，拖过去就行。
+     加 --reveal 会直接在访达 / 资源管理器里选中它。
 
-装好后扩展会自动连桥。跑 huashu-chrome doctor 应该看到「Chrome 扩展在线」
+装好后扩展会自动连桥。跑 shuaipotian-edge doctor 应该看到「Edge 扩展在线」
 `);
 }
 

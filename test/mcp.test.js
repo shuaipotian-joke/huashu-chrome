@@ -53,7 +53,7 @@ test('agent 能通过 stdio 挂上 MCP server 并拿到工具表', async () => {
   //   截断或根本不展示，工具描述是唯一每家都读的通道）
   //   21300 → 21800：新增 reload 工具（2026-09-09）。之前 chrome.runtime.reload()
   //   只是 background.js 里一个故意不进 MCP 工具表的隐藏命令，装完新版本/改完
-  //   unpacked 扩展代码只能靠人去 chrome://extensions 点——不该让「扩展怎么把
+  //   unpacked 扩展代码只能靠人去 edge://extensions 点——不该让「扩展怎么把
   //   自己更新到最新代码」这件事一直靠人工。描述里的 DISRUPTIVE 警告不能省：
   //   这个命令影响的是同一台机器上*所有*标签页和*所有*其他 agent 会话共享的
   //   那一个扩展实例，说清楚代价比省字符更重要）

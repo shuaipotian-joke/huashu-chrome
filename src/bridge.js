@@ -63,10 +63,10 @@ export function startBridge({ port = DEFAULT_PORT, token = newToken(), writeInfo
   const WAIT_CAP = 64;                 // 扩展长期不在时别无限堆积
   const WAIT_MAX = 40000;              // 一个 30s alarm 周期 + 余量
   // 话术和 doctor、mcp-server 的 hint 保持一致：首选动作是扩展弹窗里的「重连」，
-  // 不是去 chrome://extensions——插件从来没消失过，去那儿只会把人引向「重装」。
+  // 不是去 edge://extensions——插件从来没消失过，去那儿只会把人引向「重装」。
   const NO_EXT_MSG = '扩展没连上桥。桥已经替你等过一轮'
-    + `（最多 ${WAIT_MAX / 1000}s），它还没回来。让用户点一下浏览器工具栏的 huashu-chrome 图标 → 「重连」`
-    + '（插件没消失，只是这条连接断了）；Chrome 没开就先开；改过扩展代码才需要去 chrome://extensions 重载。';
+    + `（最多 ${WAIT_MAX / 1000}s），它还没回来。让用户点一下浏览器工具栏的 shuaipotian-edge 图标 → 「重连」`
+    + '（插件没消失，只是这条连接断了）；Edge 没开就先开；改过扩展代码才需要去 edge://extensions 重载。';
 
   let lastActivity = Date.now();
 
@@ -210,10 +210,10 @@ export function startBridge({ port = DEFAULT_PORT, token = newToken(), writeInfo
       }
       extensions.add(ws);
 
-      // 改了扩展代码却忘记去 chrome://extensions 重载，是这类产品最高频的故障，
+      // 改了扩展代码却忘记去 edge://extensions 重载，是这类产品最高频的故障，
       // 症状还都是些莫名其妙的行为。这里把它变成一句明确的话。
       if (ws.extVersion !== VERSION) {
-        log(`⚠️  版本不一致：扩展 ${ws.extVersion} vs 桥 ${VERSION} —— 去 chrome://extensions 重载扩展`);
+        log(`⚠️  版本不一致：扩展 ${ws.extVersion} vs 桥 ${VERSION} —— 去 edge://extensions 重载扩展`);
       }
       log(`扩展已连接（${extLabel(ws)}）`);
       // 多实例不再是故障，但仍然值得说一声：命令只会去其中一个，
