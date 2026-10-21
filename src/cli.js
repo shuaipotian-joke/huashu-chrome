@@ -9,6 +9,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readBridgeInfo, DEFAULT_PORT, HOME, AUDIT_FILE, LOG_FILE } from './lib/paths.js';
+import { VERSION } from './lib/version.js';
+import { compat, compatNote } from '../extension/compat.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -121,7 +123,7 @@ switch (cmd) {
   }
 
   default:
-    console.log(`shuaipotian-edge — 让任何 AI agent 操控你自己的 Chrome
+    console.log(`shuaipotian-edge — 让任何 AI agent 操控你自己的 Edge
 
   shuaipotian-edge install        一键安装：自动配好所有 agent + 引导装扩展
   shuaipotian-edge mcp            启动 MCP server（agent 配置里填这条，install 会自动写）
@@ -169,14 +171,18 @@ async function doctor() {
     ok(`pid ${info.pid} · 端口 ${info.port} · 起于 ${info.startedAt ? new Date(info.startedAt).toLocaleTimeString('zh-CN', { hour12: false }) : '?'}`);
     {
       const r = await probe(info);
-      r.ok ? ok(`握手正常${r.extensionOnline ? ` · Chrome 扩展在线 (v${r.extensionVersion})` : ''}`) : bad('握手失败：' + r.error);
-      if (r.versionMismatch) bad(`扩展版本 ${r.extensionVersion} 和 CLI 不一致`, '去 edge://extensions 点重载，再刷新目标页面');
+      r.ok ? ok(`握手正常${r.extensionOnline ? ` · Edge 扩展在线 (v${r.extensionVersion})` : ''}`) : bad('握手失败：' + r.error);
+      if (r.extensionVersion) {
+        const level = compat({ ext: r.extensionVersion, cli: VERSION, extProtocol: r.extensionProtocol });
+        if (level === 'protocol' || level === 'ext-old' || level === 'cli-old') bad(compatNote(level, { ext: r.extensionVersion, cli: VERSION }));
+        else if (level === 'patch') ok(`扩展 v${r.extensionVersion} / 本地端 v${VERSION}：只差补丁号，互相兼容`);
+      }
       // 多个 Chrome 实例连着不再是故障（桥按实例路由），但必须说出来：
       // 「命令为什么跑到另一个窗口去了」只有这一处看得见。
       if ((r.extensions || []).length > 1) {
-        console.log(`  ℹ️  ${r.extensions.length} 个 Chrome 实例连着桥：`);
+        console.log(`  ℹ️  ${r.extensions.length} 个 Edge 实例连着桥：`);
         for (const e of r.extensions) {
-          console.log(`       ${e.primary ? '→' : ' '} Chrome ${e.chrome} · 扩展 ${e.version}${e.headless ? ' · headless' : ''}${e.primary ? '（命令走这个）' : ''}`);
+          console.log(`       ${e.primary ? '→' : ' '} Edge ${e.chrome} · 扩展 ${e.version}${e.headless ? ' · headless' : ''}${e.primary ? '（命令走这个）' : ''}`);
         }
         if (r.extensions.some((e) => e.headless)) {
           console.log('       headless 那个多半是某次抓取留下的孤儿进程，可以 kill 掉');
@@ -186,9 +192,9 @@ async function doctor() {
         // 话术和 popup、mcp-server 的 hint 一致：首选动作是弹窗里的「重连」。
         // 「去浏览器点开任意页面」对半开连接是错的——半开时 offscreen 自认为在线，
         // 不会因为你开了个页面就重连；「去 edge://extensions」则把人引向重装。
-        bad('Chrome 扩展这会儿没连着桥',
+        bad('Edge 扩展这会儿没连着桥',
           '点浏览器工具栏的 shuaipotian-edge 图标 → 「重连」，几秒后再跑一次 doctor（插件没消失，只是连接断了）。'
-          + '图标都没有？Chrome 没开、扩展没装或被停用——按下面「扩展」一栏的目录去装。');
+          + '图标都没有？Edge 没开、扩展没装或被停用——按下面「扩展」一栏的目录去装。');
       }
     }
   }
@@ -196,7 +202,7 @@ async function doctor() {
   console.log('\n扩展');
   const mf = path.join(ROOT, 'extension', 'manifest.json');
   fs.existsSync(mf)
-    ? ok(`${path.join(ROOT, 'extension')}${alive ? '' : ''}（这只说明文件在；Chrome 是否从这里加载了，看上面「扩展在线」那行）`)
+    ? ok(`${path.join(ROOT, 'extension')}${alive ? '' : ''}（这只说明文件在；Edge 是否从这里加载了，看上面「扩展在线」那行）`)
     : bad('扩展目录缺失', '重装 shuaipotian-edge');
 
   // bridge.log 里最近一次断连：用户体感的「插件消失」到底是什么时候、断了多久
@@ -305,6 +311,18 @@ function auditStats(days) {
     console.log('\n错误 Top 8');
     for (const [k, n] of [...errs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) console.log(`  ${k.padEnd(28)} ${n}`);
   }
+  // 1.3 起写操作回执带效果类别：none（真没反应）该越来越少，request-only 是以前会被误判的那批
+  const eff = new Map();
+  for (const r of cmds) { const e = res.get(r)?.effect; if (e) eff.set(e, (eff.get(e) || 0) + 1); }
+  if (eff.size) {
+    console.log('\n写操作效果（1.3 起记录）');
+    for (const [k, n] of [...eff.entries()].sort((a, b) => b[1] - a[1])) console.log(`  ${k.padEnd(18)} ${n}`);
+  }
+  const lrn = cmds.filter((r) => r.cmd === 'learnings');
+  if (lrn.length) {
+    const adopt = lrn.filter((r) => r.params?.adopt).length, save = lrn.filter((r) => r.params?.save).length;
+    console.log(`\nlearnings ${lrn.length} 次 · 写回 ${save} · 剧本入库 ${adopt}`);
+  }
   console.log('');
 }
 
@@ -319,7 +337,7 @@ function probe(info) {
       const m = JSON.parse(ev.data);
       ws.close();
       resolve(m.type === 'welcome'
-        ? { ok: true, extensionOnline: m.extensionOnline, extensionVersion: m.extensionVersion, versionMismatch: m.versionMismatch, extensions: m.extensions || [] }
+        ? { ok: true, extensionOnline: m.extensionOnline, extensionVersion: m.extensionVersion, extensionProtocol: m.extensionProtocol, versionMismatch: m.versionMismatch, extensions: m.extensions || [] }
         : { ok: false, error: JSON.stringify(m) });
     };
   });
